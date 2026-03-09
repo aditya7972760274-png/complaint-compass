@@ -14,7 +14,80 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      complaints: {
+        Row: {
+          ai_response_draft: string | null
+          ai_root_cause: string | null
+          category: string | null
+          channel: string
+          cluster_id: string | null
+          complaint_text: string
+          created_at: string
+          date: string
+          duplicate_of: string | null
+          escalation_risk: number | null
+          frustration_score: number | null
+          id: string
+          location: string
+          priority_score: number | null
+          product_type: string
+          sentiment: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ai_response_draft?: string | null
+          ai_root_cause?: string | null
+          category?: string | null
+          channel?: string
+          cluster_id?: string | null
+          complaint_text: string
+          created_at?: string
+          date?: string
+          duplicate_of?: string | null
+          escalation_risk?: number | null
+          frustration_score?: number | null
+          id?: string
+          location?: string
+          priority_score?: number | null
+          product_type?: string
+          sentiment?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ai_response_draft?: string | null
+          ai_root_cause?: string | null
+          category?: string | null
+          channel?: string
+          cluster_id?: string | null
+          complaint_text?: string
+          created_at?: string
+          date?: string
+          duplicate_of?: string | null
+          escalation_risk?: number | null
+          frustration_score?: number | null
+          id?: string
+          location?: string
+          priority_score?: number | null
+          product_type?: string
+          sentiment?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaints_duplicate_of_fkey"
+            columns: ["duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
