@@ -17,10 +17,10 @@ const navItems = [
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
-  const { logout } = useAuth();
+  const { signOut } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = () => { logout(); navigate("/"); };
+  const handleLogout = async () => { await signOut(); navigate("/"); };
 
   return (
     <div className="min-h-screen flex bg-background">

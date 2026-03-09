@@ -1,46 +1,89 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { addComplaint } from "@/lib/mockData";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { analyzeComplaint, insertComplaint } from "@/lib/api";
+import { useAuth } from "@/lib/authContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Papa from "papaparse";
-import { Upload, FileText } from "lucide-react";
+import { Upload, FileText, Loader2 } from "lucide-react";
 
 const NewComplaintPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({ text: "", date: "2026-03-09", productType: "", channel: "", location: "" });
+  const [form, setForm] = useState({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "" });
+
+  const submitMutation = useMutation({
+    mutationFn: async (data: { text: string; date: string; productType: string; channel: string; location: string }) => {
+      if (!user) throw new Error("Not authenticated");
+
+      // Run AI analysis
+      const analysis = await analyzeComplaint(data.text, data.productType, data.channel, data.location);
+
+      // Insert with AI results
+      return insertComplaint({
+        complaint_text: data.text,
+        date: data.date,
+        product_type: data.productType || "General",
+        channel: data.channel || "Manual",
+        location: data.location || "Unknown",
+        user_id: user.id,
+        category: analysis.category,
+        sentiment: analysis.sentiment,
+        frustration_score: analysis.frustration_score,
+        priority_score: analysis.priority_score,
+        escalation_risk: analysis.escalation_risk,
+        ai_response_draft: analysis.ai_response_draft,
+        ai_root_cause: analysis.ai_root_cause,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      toast.success("Complaint submitted with AI analysis!");
+      navigate("/complaints");
+    },
+    onError: (e) => toast.error(e.message || "Failed to submit complaint"),
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.text.trim()) { toast.error("Complaint text is required"); return; }
-    addComplaint(form);
-    toast.success("Complaint submitted — AI analysis applied");
-    navigate("/complaints");
+    submitMutation.mutate(form);
   };
 
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file || !user) return;
+
     Papa.parse(file, {
       header: true,
-      complete: (results) => {
+      complete: async (results) => {
         let count = 0;
-        results.data.forEach((row: any) => {
-          if (row.text || row.complaint_text) {
-            addComplaint({
-              text: row.text || row.complaint_text || "",
-              date: row.date || "2026-03-09",
-              productType: row.product_type || row.productType || "General",
+        for (const row of results.data as any[]) {
+          const text = row.text || row.complaint_text;
+          if (!text) continue;
+          try {
+            const analysis = await analyzeComplaint(text, row.product_type || row.productType || "", row.channel || "", row.location || "");
+            await insertComplaint({
+              complaint_text: text,
+              date: row.date || new Date().toISOString().split("T")[0],
+              product_type: row.product_type || row.productType || "General",
               channel: row.channel || "CSV Import",
               location: row.location || "Unknown",
+              user_id: user.id,
+              ...analysis,
             });
             count++;
+          } catch (err) {
+            console.error("Failed to process row:", err);
           }
-        });
+        }
+        queryClient.invalidateQueries({ queryKey: ["complaints"] });
         toast.success(`Imported ${count} complaints with AI analysis`);
         navigate("/complaints");
       },
@@ -52,10 +95,9 @@ const NewComplaintPage = () => {
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Submit Complaint</h1>
-        <p className="text-sm text-muted-foreground">Add manually or import via CSV</p>
+        <p className="text-sm text-muted-foreground">AI will automatically categorize, score, and generate responses</p>
       </div>
 
-      {/* CSV Upload */}
       <div
         className="glass-card p-8 border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer text-center"
         onClick={() => fileRef.current?.click()}
@@ -102,9 +144,12 @@ const NewComplaintPage = () => {
           </div>
         </div>
 
-        <Button type="submit" className="w-full">
-          <FileText className="w-4 h-4 mr-2" />
-          Submit & Run AI Analysis
+        <Button type="submit" className="w-full" disabled={submitMutation.isPending}>
+          {submitMutation.isPending ? (
+            <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Running AI Analysis...</>
+          ) : (
+            <><FileText className="w-4 h-4 mr-2" /> Submit & Run AI Analysis</>
+          )}
         </Button>
       </form>
     </div>

@@ -7,21 +7,26 @@ import { motion } from "framer-motion";
 import { Shield, AlertTriangle } from "lucide-react";
 
 const LoginPage = () => {
-  const { login } = useAuth();
-  const [username, setUsername] = useState("");
+  const { signIn, signUp } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!login(username, password)) {
-      setError("Invalid credentials. Use admin / admin123");
-    }
+    setError("");
+    setLoading(true);
+    const { error } = isSignUp
+      ? await signUp(email, password)
+      : await signIn(email, password);
+    if (error) setError(error);
+    setLoading(false);
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background relative overflow-hidden">
-      {/* Background grid effect */}
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: "linear-gradient(hsl(var(--primary) / 0.3) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary) / 0.3) 1px, transparent 1px)",
         backgroundSize: "60px 60px"
@@ -46,13 +51,14 @@ const LoginPage = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="username" className="text-muted-foreground text-xs uppercase tracking-wider">Username</Label>
+              <Label htmlFor="email" className="text-muted-foreground text-xs uppercase tracking-wider">Email</Label>
               <Input
-                id="username"
-                value={username}
-                onChange={e => { setUsername(e.target.value); setError(""); }}
+                id="email"
+                type="email"
+                value={email}
+                onChange={e => { setEmail(e.target.value); setError(""); }}
                 className="bg-secondary border-border focus:border-primary"
-                placeholder="Enter username"
+                placeholder="admin@bank.com"
               />
             </div>
             <div className="space-y-2">
@@ -74,14 +80,17 @@ const LoginPage = () => {
               </motion.div>
             )}
 
-            <Button type="submit" className="w-full">
-              Access Dashboard
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Please wait..." : isSignUp ? "Create Account" : "Access Dashboard"}
             </Button>
           </form>
 
-          <p className="text-xs text-muted-foreground mt-6 text-center">
-            Demo credentials: admin / admin123
-          </p>
+          <button
+            onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
+            className="text-xs text-muted-foreground mt-6 text-center w-full block hover:text-primary transition-colors"
+          >
+            {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+          </button>
         </div>
       </motion.div>
     </div>
