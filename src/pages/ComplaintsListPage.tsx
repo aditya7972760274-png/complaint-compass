@@ -35,7 +35,7 @@ const ComplaintsListPage = () => {
           <h1 className="text-2xl font-bold text-foreground">Complaints</h1>
           <p className="text-sm text-muted-foreground">{complaints.length} total complaints</p>
         </div>
-        <Link to="/complaints/new" className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+        <Link to="/admin/complaints/new" className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
           + New Complaint
         </Link>
       </div>
@@ -63,7 +63,7 @@ const ComplaintsListPage = () => {
               {complaints.map(c => (
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="px-4 py-3">
-                    <Link to={`/complaints/${c.id}`} className="font-mono text-primary hover:underline text-xs">{c.id.slice(0, 8)}</Link>
+                    <Link to={`/admin/complaints/${c.id}`} className="font-mono text-primary hover:underline text-xs">{c.id.slice(0, 8)}</Link>
                   </td>
                   <td className="px-4 py-3 max-w-xs truncate text-foreground">{c.complaint_text}</td>
                   <td className="px-4 py-3"><Badge variant="secondary" className="text-xs">{c.category || "Pending"}</Badge></td>
