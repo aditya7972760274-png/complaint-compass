@@ -48,6 +48,7 @@ const App = () => (
             <Route path="/clusters" element={<ProtectedRoute><ClustersPage /></ProtectedRoute>} />
             <Route path="/knowledge-graph" element={<ProtectedRoute><KnowledgeGraphPage /></ProtectedRoute>} />
             <Route path="/intelligence" element={<ProtectedRoute><IntelligencePage /></ProtectedRoute>} />
+            <Route path="/anomalies" element={<ProtectedRoute><AnomalyDetectionPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

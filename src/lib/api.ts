@@ -54,6 +54,17 @@ export const analyzeComplaint = async (complaint_text: string, product_type: str
   return data;
 };
 
+export const updateComplaintStatus = async (id: string, status: string) => {
+  const { data, error } = await supabase
+    .from("complaints")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+};
+
 export const generateIntelligenceReport = async (complaints: Complaint[]) => {
   const summary = complaints.map(c =>
     `[${c.category || "Unknown"}] ${c.complaint_text} (Frustration: ${c.frustration_score || "N/A"}, Priority: ${c.priority_score || "N/A"}, Location: ${c.location})`
@@ -61,6 +72,14 @@ export const generateIntelligenceReport = async (complaints: Complaint[]) => {
 
   const { data, error } = await supabase.functions.invoke("generate-intelligence", {
     body: { complaints_summary: `Total complaints: ${complaints.length}\n\n${summary}` },
+  });
+  if (error) throw error;
+  return data;
+};
+
+export const generateClusterAnalysis = async (complaintsTexts: string[]) => {
+  const { data, error } = await supabase.functions.invoke("analyze-cluster", {
+    body: { complaints_texts: complaintsTexts },
   });
   if (error) throw error;
   return data;
