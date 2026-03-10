@@ -22,7 +22,7 @@ const NewComplaintPage = () => {
     mutationFn: async (data: { text: string; date: string; productType: string; channel: string; location: string }) => {
       if (!user) throw new Error("Not authenticated");
 
-      // Run AI analysis
+      // Run AI analysis (includes duplicate detection)
       const analysis = await analyzeComplaint(data.text, data.productType, data.channel, data.location);
 
       // Insert with AI results
@@ -40,9 +40,10 @@ const NewComplaintPage = () => {
         escalation_risk: analysis.escalation_risk,
         ai_response_draft: analysis.ai_response_draft,
         ai_root_cause: analysis.ai_root_cause,
+        duplicate_of: analysis.duplicate_of || null,
       });
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
       toast.success("Complaint submitted with AI analysis!");
       navigate("/admin/complaints");
