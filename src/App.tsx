@@ -4,6 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/authContext";
+import LandingPage from "./pages/LandingPage";
+import PublicComplaintPage from "./pages/PublicComplaintPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ComplaintsListPage from "./pages/ComplaintsListPage";
@@ -21,14 +23,14 @@ const queryClient = new QueryClient();
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Loading...</div>;
-  if (!isAuthenticated) return <Navigate to="/" replace />;
+  if (!isAuthenticated) return <Navigate to="/admin/login" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
-const LoginRoute = () => {
+const AdminLoginRoute = () => {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">Loading...</div>;
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />;
+  if (isAuthenticated) return <Navigate to="/admin/dashboard" replace />;
   return <LoginPage />;
 };
 
@@ -40,15 +42,25 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
-            <Route path="/" element={<LoginRoute />} />
-            <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-            <Route path="/complaints" element={<ProtectedRoute><ComplaintsListPage /></ProtectedRoute>} />
-            <Route path="/complaints/new" element={<ProtectedRoute><NewComplaintPage /></ProtectedRoute>} />
-            <Route path="/complaints/:id" element={<ProtectedRoute><ComplaintDetailPage /></ProtectedRoute>} />
-            <Route path="/clusters" element={<ProtectedRoute><ClustersPage /></ProtectedRoute>} />
-            <Route path="/knowledge-graph" element={<ProtectedRoute><KnowledgeGraphPage /></ProtectedRoute>} />
-            <Route path="/intelligence" element={<ProtectedRoute><IntelligencePage /></ProtectedRoute>} />
-            <Route path="/anomalies" element={<ProtectedRoute><AnomalyDetectionPage /></ProtectedRoute>} />
+            {/* Public routes */}
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/raise-complaint" element={<PublicComplaintPage />} />
+            <Route path="/admin/login" element={<AdminLoginRoute />} />
+
+            {/* Admin protected routes */}
+            <Route path="/admin/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+            <Route path="/admin/complaints" element={<ProtectedRoute><ComplaintsListPage /></ProtectedRoute>} />
+            <Route path="/admin/complaints/new" element={<ProtectedRoute><NewComplaintPage /></ProtectedRoute>} />
+            <Route path="/admin/complaints/:id" element={<ProtectedRoute><ComplaintDetailPage /></ProtectedRoute>} />
+            <Route path="/admin/clusters" element={<ProtectedRoute><ClustersPage /></ProtectedRoute>} />
+            <Route path="/admin/anomalies" element={<ProtectedRoute><AnomalyDetectionPage /></ProtectedRoute>} />
+            <Route path="/admin/knowledge-graph" element={<ProtectedRoute><KnowledgeGraphPage /></ProtectedRoute>} />
+            <Route path="/admin/intelligence" element={<ProtectedRoute><IntelligencePage /></ProtectedRoute>} />
+
+            {/* Redirects for old routes */}
+            <Route path="/dashboard" element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="/complaints" element={<Navigate to="/admin/complaints" replace />} />
+            <Route path="/complaints/:id" element={<Navigate to="/admin/complaints/:id" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

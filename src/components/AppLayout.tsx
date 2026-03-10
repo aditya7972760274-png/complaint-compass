@@ -8,13 +8,13 @@ import {
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/complaints", label: "Complaints", icon: MessageSquareWarning },
-  { to: "/complaints/new", label: "Submit Complaint", icon: PlusCircle },
-  { to: "/clusters", label: "Clusters & RCA", icon: Brain },
-  { to: "/anomalies", label: "Anomaly Detection", icon: Activity },
-  { to: "/knowledge-graph", label: "Knowledge Graph", icon: Network },
-  { to: "/intelligence", label: "Daily Intelligence", icon: FileText },
+  { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/admin/complaints", label: "Complaints", icon: MessageSquareWarning },
+  { to: "/admin/complaints/new", label: "Submit Complaint", icon: PlusCircle },
+  { to: "/admin/clusters", label: "Clusters & RCA", icon: Brain },
+  { to: "/admin/anomalies", label: "Anomaly Detection", icon: Activity },
+  { to: "/admin/knowledge-graph", label: "Knowledge Graph", icon: Network },
+  { to: "/admin/intelligence", label: "Daily Intelligence", icon: FileText },
 ];
 
 const AppLayout = ({ children }: { children: ReactNode }) => {
@@ -25,14 +25,13 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
 
   return (
     <div className="min-h-screen flex bg-background">
-      {/* Sidebar */}
       <aside className="w-64 border-r border-border bg-sidebar flex flex-col shrink-0">
         <div className="p-5 border-b border-border flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Shield className="w-4 h-4 text-primary" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground">ACIP</h2>
+            <h2 className="text-sm font-semibold text-foreground">ACIP Admin</h2>
             <p className="text-[10px] text-muted-foreground">Complaint Intelligence</p>
           </div>
         </div>
@@ -66,7 +65,6 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
         </div>
       </aside>
 
-      {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="p-6 max-w-7xl mx-auto">
           {children}

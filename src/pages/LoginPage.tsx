@@ -1,13 +1,15 @@
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/lib/authContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { motion } from "framer-motion";
-import { Shield, AlertTriangle } from "lucide-react";
+import { Shield, AlertTriangle, ArrowLeft } from "lucide-react";
 
 const LoginPage = () => {
   const { signIn, signUp } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -21,7 +23,11 @@ const LoginPage = () => {
     const { error } = isSignUp
       ? await signUp(email, password)
       : await signIn(email, password);
-    if (error) setError(error);
+    if (error) {
+      setError(error);
+    } else if (!isSignUp) {
+      navigate("/admin/dashboard");
+    }
     setLoading(false);
   };
 
@@ -38,15 +44,25 @@ const LoginPage = () => {
         transition={{ duration: 0.6 }}
         className="w-full max-w-md mx-4"
       >
+        <Link to="/" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
+          <ArrowLeft className="w-4 h-4" /> Back to home
+        </Link>
+
         <div className="glass-card p-8 glow-primary">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center">
               <Shield className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-foreground">AI Complaint Intelligence</h1>
-              <p className="text-xs text-muted-foreground">Banking Operations Platform</p>
+              <h1 className="text-xl font-semibold text-foreground">Admin Login</h1>
+              <p className="text-xs text-muted-foreground">AI Complaint Intelligence Platform</p>
             </div>
+          </div>
+
+          <div className="bg-secondary/50 rounded-md p-3 mb-6 text-xs text-muted-foreground">
+            <p className="font-medium text-foreground mb-1">Demo Admin Credentials:</p>
+            <p>Email: <span className="text-primary font-mono">admin@acip.bank</span></p>
+            <p>Password: <span className="text-primary font-mono">Admin@123</span></p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
@@ -58,7 +74,7 @@ const LoginPage = () => {
                 value={email}
                 onChange={e => { setEmail(e.target.value); setError(""); }}
                 className="bg-secondary border-border focus:border-primary"
-                placeholder="admin@bank.com"
+                placeholder="admin@acip.bank"
               />
             </div>
             <div className="space-y-2">
@@ -81,7 +97,7 @@ const LoginPage = () => {
             )}
 
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Please wait..." : isSignUp ? "Create Account" : "Access Dashboard"}
+              {loading ? "Please wait..." : isSignUp ? "Create Admin Account" : "Access Dashboard"}
             </Button>
           </form>
 
@@ -89,7 +105,7 @@ const LoginPage = () => {
             onClick={() => { setIsSignUp(!isSignUp); setError(""); }}
             className="text-xs text-muted-foreground mt-6 text-center w-full block hover:text-primary transition-colors"
           >
-            {isSignUp ? "Already have an account? Sign in" : "Need an account? Sign up"}
+            {isSignUp ? "Already have an account? Sign in" : "Need an admin account? Sign up"}
           </button>
         </div>
       </motion.div>
