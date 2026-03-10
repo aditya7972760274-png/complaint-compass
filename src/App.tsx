@@ -12,6 +12,7 @@ import NewComplaintPage from "./pages/NewComplaintPage";
 import ClustersPage from "./pages/ClustersPage";
 import KnowledgeGraphPage from "./pages/KnowledgeGraphPage";
 import IntelligencePage from "./pages/IntelligencePage";
+import AnomalyDetectionPage from "./pages/AnomalyDetectionPage";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
