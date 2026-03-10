@@ -68,7 +68,7 @@ const ComplaintDetailPage = () => {
 
   return (
     <div className="space-y-6">
-      <Link to="/complaints" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+      <Link to="/admin/complaints" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="w-4 h-4" /> Back to complaints
       </Link>
 
