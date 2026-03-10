@@ -45,7 +45,11 @@ const NewComplaintPage = () => {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
-      toast.success("Complaint submitted with AI analysis!");
+      if (data?.duplicate_of) {
+        toast.warning("Possible duplicate detected! Complaint submitted and linked to existing one.");
+      } else {
+        toast.success("Complaint submitted with AI analysis!");
+      }
       navigate("/admin/complaints");
     },
     onError: (e) => toast.error(e.message || "Failed to submit complaint"),
