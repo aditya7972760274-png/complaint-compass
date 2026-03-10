@@ -63,7 +63,7 @@ const ComplaintsListPage = () => {
               {complaints.map(c => (
                 <tr key={c.id} className="border-b border-border/50 hover:bg-secondary/30 transition-colors">
                   <td className="px-4 py-3">
-                    <Link to={`/complaints/${c.id}`} className="font-mono text-primary hover:underline text-xs">{c.id.slice(0, 8)}</Link>
+                    <Link to={`/admin/complaints/${c.id}`} className="font-mono text-primary hover:underline text-xs">{c.id.slice(0, 8)}</Link>
                   </td>
                   <td className="px-4 py-3 max-w-xs truncate text-foreground">{c.complaint_text}</td>
                   <td className="px-4 py-3"><Badge variant="secondary" className="text-xs">{c.category || "Pending"}</Badge></td>

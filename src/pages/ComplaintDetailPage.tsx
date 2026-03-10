@@ -59,7 +59,7 @@ const ComplaintDetailPage = () => {
     return (
       <div className="text-center py-20">
         <p className="text-muted-foreground">Complaint not found</p>
-        <Link to="/complaints" className="text-primary text-sm mt-2 inline-block">← Back to list</Link>
+        <Link to="/admin/complaints" className="text-primary text-sm mt-2 inline-block">← Back to list</Link>
       </div>
     );
   }

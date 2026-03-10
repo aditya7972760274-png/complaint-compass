@@ -85,7 +85,7 @@ const NewComplaintPage = () => {
         }
         queryClient.invalidateQueries({ queryKey: ["complaints"] });
         toast.success(`Imported ${count} complaints with AI analysis`);
-        navigate("/complaints");
+        navigate("/admin/complaints");
       },
       error: () => toast.error("Failed to parse CSV"),
     });
