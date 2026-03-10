@@ -36,6 +36,7 @@ export const insertComplaint = async (complaint: {
   escalation_risk?: number;
   ai_response_draft?: string;
   ai_root_cause?: string;
+  duplicate_of?: string | null;
 }) => {
   const { data, error } = await supabase
     .from("complaints")
