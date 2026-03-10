@@ -1,16 +1,58 @@
 import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { fetchComplaintById } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchComplaintById, updateComplaintStatus, generateClusterAnalysis } from "@/lib/api";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, AlertTriangle, Brain, MessageSquare, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, AlertTriangle, Brain, MessageSquare, ShieldAlert, Loader2, Copy, Check, FileSearch } from "lucide-react";
+import { toast } from "sonner";
+import { useState } from "react";
+
+const STATUS_OPTIONS = [
+  { value: "new", label: "New", className: "bg-chart-5/20 text-chart-5" },
+  { value: "investigating", label: "Investigating", className: "bg-primary/20 text-primary" },
+  { value: "in_progress", label: "In Progress", className: "bg-warning/20 text-warning" },
+  { value: "resolved", label: "Resolved", className: "bg-success/20 text-success" },
+  { value: "escalated", label: "Escalated", className: "bg-destructive/20 text-destructive" },
+  { value: "closed", label: "Closed", className: "bg-muted-foreground/20 text-muted-foreground" },
+];
 
 const ComplaintDetailPage = () => {
   const { id } = useParams();
+  const queryClient = useQueryClient();
+  const [copied, setCopied] = useState(false);
+  const [rcaReport, setRcaReport] = useState<any>(null);
+
   const { data: complaint, isLoading, error } = useQuery({
     queryKey: ["complaint", id],
     queryFn: () => fetchComplaintById(id!),
     enabled: !!id,
   });
+
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) => updateComplaintStatus(id, status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["complaint", id] });
+      queryClient.invalidateQueries({ queryKey: ["complaints"] });
+      toast.success("Status updated");
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const rcaMutation = useMutation({
+    mutationFn: (text: string) => generateClusterAnalysis([text]),
+    onSuccess: (data) => setRcaReport(data),
+    onError: (e) => toast.error(e.message),
+  });
+
+  const copyDraft = () => {
+    if (complaint?.ai_response_draft) {
+      navigator.clipboard.writeText(complaint.ai_response_draft);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast.success("Response draft copied to clipboard");
+    }
+  };
 
   if (isLoading) return <div className="text-muted-foreground">Loading complaint...</div>;
   if (error || !complaint) {
@@ -22,18 +64,37 @@ const ComplaintDetailPage = () => {
     );
   }
 
+  const currentStatus = STATUS_OPTIONS.find(s => s.value === complaint.status) || STATUS_OPTIONS[0];
+
   return (
     <div className="space-y-6">
       <Link to="/complaints" className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
         <ArrowLeft className="w-4 h-4" /> Back to complaints
       </Link>
 
-      <div className="flex items-center gap-4">
-        <h1 className="text-2xl font-bold text-foreground font-mono">{complaint.id.slice(0, 8)}</h1>
-        <Badge variant="secondary">{complaint.category || "Pending"}</Badge>
-        <span className={`text-xs px-2 py-1 rounded-full ${complaint.status === "escalated" ? "bg-destructive/20 text-destructive" : complaint.status === "new" ? "bg-chart-5/20 text-chart-5" : "bg-warning/20 text-warning"}`}>
-          {complaint.status}
-        </span>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold text-foreground font-mono">{complaint.id.slice(0, 8)}</h1>
+          <Badge variant="secondary">{complaint.category || "Pending"}</Badge>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-muted-foreground uppercase tracking-wider">Status:</span>
+          <Select
+            value={complaint.status}
+            onValueChange={(value) => statusMutation.mutate({ id: complaint.id, status: value })}
+            disabled={statusMutation.isPending}
+          >
+            <SelectTrigger className={`w-[160px] text-sm ${currentStatus.className}`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {STATUS_OPTIONS.map(s => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {statusMutation.isPending && <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />}
+        </div>
       </div>
 
       <div className="glass-card p-5">
@@ -83,30 +144,85 @@ const ComplaintDetailPage = () => {
 
         <div className="glass-card p-5">
           <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-4 h-4 text-chart-2" />
+            <ShieldAlert className="w-4 h-4 text-chart-2" />
             <p className="text-xs text-muted-foreground uppercase tracking-wider">Escalation Risk</p>
           </div>
           <p className={`text-lg font-bold ${(complaint.escalation_risk || 0) >= 0.7 ? "text-destructive" : (complaint.escalation_risk || 0) >= 0.4 ? "text-warning" : "text-success"}`}>
             {complaint.escalation_risk != null ? `${(complaint.escalation_risk * 100).toFixed(0)}%` : "—"}
           </p>
+          {complaint.escalation_risk != null && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {complaint.escalation_risk >= 0.7 ? "⚠️ High risk of regulatory/social media escalation" : complaint.escalation_risk >= 0.4 ? "Moderate risk" : "Low risk"}
+            </p>
+          )}
         </div>
       </div>
 
       {complaint.ai_root_cause && (
         <div className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <Brain className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-medium text-foreground">AI Root Cause Analysis</h3>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <Brain className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-medium text-foreground">AI Root Cause Analysis</h3>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => rcaMutation.mutate(complaint.complaint_text)}
+              disabled={rcaMutation.isPending}
+            >
+              {rcaMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <FileSearch className="w-3 h-3 mr-1" />}
+              Deep Analysis
+            </Button>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">{complaint.ai_root_cause}</p>
         </div>
       )}
 
+      {rcaReport && (
+        <div className="glass-card p-5 glow-primary">
+          <div className="flex items-center gap-2 mb-3">
+            <FileSearch className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-medium text-foreground">AI Investigation Report</h3>
+          </div>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <div>
+              <p className="text-xs text-primary uppercase tracking-wider mb-1">Root Cause</p>
+              <p className="leading-relaxed">{rcaReport.root_cause}</p>
+            </div>
+            <div>
+              <p className="text-xs text-primary uppercase tracking-wider mb-1">Investigation Summary</p>
+              <p className="leading-relaxed">{rcaReport.investigation_summary}</p>
+            </div>
+            <div>
+              <p className="text-xs text-primary uppercase tracking-wider mb-1">Recommended Actions</p>
+              <ul className="list-disc list-inside space-y-1">
+                {rcaReport.recommended_actions?.map((a: string, i: number) => <li key={i}>{a}</li>)}
+              </ul>
+            </div>
+            <div>
+              <p className="text-xs text-primary uppercase tracking-wider mb-1">Affected Systems</p>
+              <div className="flex flex-wrap gap-2">
+                {rcaReport.affected_systems?.map((s: string, i: number) => (
+                  <Badge key={i} variant="secondary">{s}</Badge>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {complaint.ai_response_draft && (
         <div className="glass-card p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageSquare className="w-4 h-4 text-primary" />
-            <h3 className="text-sm font-medium text-foreground">AI-Generated Response Draft</h3>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-primary" />
+              <h3 className="text-sm font-medium text-foreground">AI-Generated Response Draft</h3>
+            </div>
+            <Button variant="outline" size="sm" onClick={copyDraft}>
+              {copied ? <Check className="w-3 h-3 mr-1" /> : <Copy className="w-3 h-3 mr-1" />}
+              {copied ? "Copied" : "Copy Draft"}
+            </Button>
           </div>
           <pre className="text-sm text-muted-foreground whitespace-pre-wrap font-sans leading-relaxed bg-secondary/50 rounded-md p-4">
             {complaint.ai_response_draft}

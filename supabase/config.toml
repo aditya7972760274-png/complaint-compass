@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.generate-intelligence]
 verify_jwt = false
+
+[functions.analyze-cluster]
+verify_jwt = false

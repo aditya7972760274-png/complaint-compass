@@ -12,6 +12,7 @@ import NewComplaintPage from "./pages/NewComplaintPage";
 import ClustersPage from "./pages/ClustersPage";
 import KnowledgeGraphPage from "./pages/KnowledgeGraphPage";
 import IntelligencePage from "./pages/IntelligencePage";
+import AnomalyDetectionPage from "./pages/AnomalyDetectionPage";
 import AppLayout from "./components/AppLayout";
 import NotFound from "./pages/NotFound";
 
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/clusters" element={<ProtectedRoute><ClustersPage /></ProtectedRoute>} />
             <Route path="/knowledge-graph" element={<ProtectedRoute><KnowledgeGraphPage /></ProtectedRoute>} />
             <Route path="/intelligence" element={<ProtectedRoute><IntelligencePage /></ProtectedRoute>} />
+            <Route path="/anomalies" element={<ProtectedRoute><AnomalyDetectionPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
