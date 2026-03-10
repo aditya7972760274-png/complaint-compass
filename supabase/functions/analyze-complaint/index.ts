@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.98.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,76 @@ serve(async (req) => {
     const { complaint_text, product_type, channel, location } = await req.json();
     if (!complaint_text) throw new Error("complaint_text is required");
 
+    // --- Duplicate Detection ---
+    let duplicate_of: string | null = null;
+    try {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+
+      const { data: existing } = await supabase
+        .from("complaints")
+        .select("id, complaint_text")
+        .order("created_at", { ascending: false })
+        .limit(100);
+
+      if (existing && existing.length > 0) {
+        // Use AI to check for duplicates
+        const dupCheckResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash-lite",
+            messages: [
+              {
+                role: "system",
+                content: `You are a duplicate complaint detector. Compare the NEW complaint against the list of EXISTING complaints. If the new complaint is substantially similar (same issue, same context) to any existing one, return the ID of the most similar existing complaint. Return ONLY a JSON object: {"duplicate_id": "uuid-here"} or {"duplicate_id": null} if no duplicate found. Return ONLY valid JSON.`
+              },
+              {
+                role: "user",
+                content: `NEW COMPLAINT:\n${complaint_text}\n\nEXISTING COMPLAINTS:\n${existing.slice(0, 20).map(c => `[${c.id}] ${c.complaint_text}`).join("\n")}`
+              }
+            ],
+            tools: [
+              {
+                type: "function",
+                function: {
+                  name: "check_duplicate",
+                  description: "Return duplicate check result",
+                  parameters: {
+                    type: "object",
+                    properties: {
+                      duplicate_id: { type: ["string", "null"] },
+                    },
+                    required: ["duplicate_id"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            ],
+            tool_choice: { type: "function", function: { name: "check_duplicate" } },
+          }),
+        });
+
+        if (dupCheckResponse.ok) {
+          const dupData = await dupCheckResponse.json();
+          const toolCall = dupData.choices?.[0]?.message?.tool_calls?.[0];
+          if (toolCall?.function?.arguments) {
+            const parsed = JSON.parse(toolCall.function.arguments);
+            if (parsed.duplicate_id) {
+              duplicate_of = parsed.duplicate_id;
+            }
+          }
+        }
+      }
+    } catch (dupError) {
+      console.error("Duplicate detection error (non-fatal):", dupError);
+    }
+
+    // --- Main Analysis ---
     const systemPrompt = `You are a banking complaint analysis AI. Analyze the following customer complaint and return a JSON object with these exact fields:
 - category: one of "ATM", "UPI", "Credit Cards", "Loans", "Account Issues", "Internet Banking"
 - sentiment: one of "positive", "negative", "neutral"
@@ -26,7 +97,7 @@ serve(async (req) => {
 
 Context: Product Type: ${product_type || "Unknown"}, Channel: ${channel || "Unknown"}, Location: ${location || "Unknown"}
 
-Return ONLY valid JSON, no markdown or explanation.`;
+Return ONLY valid JSON.`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -92,10 +163,17 @@ Return ONLY valid JSON, no markdown or explanation.`;
     if (toolCall?.function?.arguments) {
       analysis = JSON.parse(toolCall.function.arguments);
     } else {
-      // Fallback: try parsing content directly
       const content = aiData.choices?.[0]?.message?.content || "";
       const cleaned = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       analysis = JSON.parse(cleaned);
+    }
+
+    // Include duplicate info
+    if (duplicate_of) {
+      analysis.duplicate_of = duplicate_of;
+      analysis.is_duplicate = true;
+    } else {
+      analysis.is_duplicate = false;
     }
 
     return new Response(JSON.stringify(analysis), {
