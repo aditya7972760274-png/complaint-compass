@@ -35,7 +35,7 @@ const ComplaintsListPage = () => {
           <h1 className="text-2xl font-bold text-foreground">Complaints</h1>
           <p className="text-sm text-muted-foreground">{complaints.length} total complaints</p>
         </div>
-        <Link to="/complaints/new" className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
+        <Link to="/admin/complaints/new" className="inline-flex items-center px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 transition-colors">
           + New Complaint
         </Link>
       </div>
