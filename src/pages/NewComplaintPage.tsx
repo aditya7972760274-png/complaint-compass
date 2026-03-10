@@ -45,7 +45,7 @@ const NewComplaintPage = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["complaints"] });
       toast.success("Complaint submitted with AI analysis!");
-      navigate("/complaints");
+      navigate("/admin/complaints");
     },
     onError: (e) => toast.error(e.message || "Failed to submit complaint"),
   });
