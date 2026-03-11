@@ -51,7 +51,11 @@ export const analyzeComplaint = async (complaint_text: string, product_type: str
   const { data, error } = await supabase.functions.invoke("analyze-complaint", {
     body: { complaint_text, product_type, channel, location },
   });
-  if (error) throw error;
+  if (error) {
+    // Check if the response contains rate limit or payment info
+    if (data?.error) throw new Error(data.error);
+    throw error;
+  }
   return data;
 };
 

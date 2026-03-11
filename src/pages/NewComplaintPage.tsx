@@ -86,24 +86,37 @@ const NewComplaintPage = () => {
         const rows = (results.data as any[]).filter(row => row.complaint_text || row.text);
         setCsvProgress({ current: 0, total: rows.length });
         let count = 0;
-        for (const row of rows) {
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
           const text = row.complaint_text || row.text;
           if (!text) continue;
-          try {
-            const analysis = await analyzeComplaint(text, row.product_type || row.productType || "", row.channel || "", row.location || "");
-            await insertComplaint({
-              complaint_text: text,
-              date: row.date || new Date().toISOString().split("T")[0],
-              product_type: row.product_type || row.productType || "General",
-              channel: row.channel || "CSV Import",
-              location: row.location || "Unknown",
-              user_id: user.id,
-              ...analysis,
-            });
-            count++;
-            setCsvProgress({ current: count, total: rows.length });
-          } catch (err) {
-            console.error("Failed to process row:", err);
+          // Add delay between rows to avoid rate limiting (3s between each)
+          if (i > 0) await new Promise(r => setTimeout(r, 3000));
+          let retries = 0;
+          while (retries < 3) {
+            try {
+              const analysis = await analyzeComplaint(text, row.product_type || row.productType || "", row.channel || "", row.location || "");
+              await insertComplaint({
+                complaint_text: text,
+                date: row.date || new Date().toISOString().split("T")[0],
+                product_type: row.product_type || row.productType || "General",
+                channel: row.channel || "CSV Import",
+                location: row.location || "Unknown",
+                user_id: user.id,
+                ...analysis,
+              });
+              count++;
+              setCsvProgress({ current: count, total: rows.length });
+              break;
+            } catch (err: any) {
+              retries++;
+              if (retries < 3) {
+                console.warn(`Row ${i + 1} failed, retrying in ${retries * 5}s...`);
+                await new Promise(r => setTimeout(r, retries * 5000));
+              } else {
+                console.error("Failed to process row after retries:", err);
+              }
+            }
           }
         }
         queryClient.invalidateQueries({ queryKey: ["complaints"] });
