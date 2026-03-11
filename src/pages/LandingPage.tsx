@@ -1,7 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, MessageSquareWarning, LogIn } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Shield, MessageSquareWarning, LogIn, Search } from "lucide-react";
 
 const LandingPage = () => {
   return (
@@ -15,7 +14,7 @@ const LandingPage = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
-        className="w-full max-w-lg mx-4 space-y-8"
+        className="w-full max-w-2xl mx-4 space-y-8"
       >
         <div className="text-center space-y-3">
           <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center mx-auto glow-primary">
@@ -25,7 +24,7 @@ const LandingPage = () => {
           <p className="text-sm text-muted-foreground">Banking Operations Platform — Powered by AI</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Link to="/raise-complaint" className="block">
             <div className="glass-card p-6 text-center hover:border-primary/50 transition-all group cursor-pointer h-full">
               <div className="w-12 h-12 rounded-xl bg-warning/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
@@ -33,6 +32,16 @@ const LandingPage = () => {
               </div>
               <h2 className="text-lg font-semibold text-foreground mb-2">Raise a Complaint</h2>
               <p className="text-xs text-muted-foreground">Submit your complaint and get an instant AI-powered response</p>
+            </div>
+          </Link>
+
+          <Link to="/track-complaint" className="block">
+            <div className="glass-card p-6 text-center hover:border-primary/50 transition-all group cursor-pointer h-full">
+              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform">
+                <Search className="w-6 h-6 text-green-400" />
+              </div>
+              <h2 className="text-lg font-semibold text-foreground mb-2">Track Complaint</h2>
+              <p className="text-xs text-muted-foreground">Check the status of your existing complaint using its ID</p>
             </div>
           </Link>
 

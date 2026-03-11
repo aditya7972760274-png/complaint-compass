@@ -28,6 +28,7 @@ const PublicComplaintPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [complaint, setComplaint] = useState<{ id: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +51,7 @@ const PublicComplaintPage = () => {
       if (aiError) throw aiError;
 
       // Insert as public complaint (use a fixed public user id)
-      const { error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from("complaints")
         .insert({
           complaint_text: form.text,
@@ -66,7 +67,11 @@ const PublicComplaintPage = () => {
           escalation_risk: analysis?.escalation_risk,
           ai_response_draft: analysis?.ai_response_draft,
           ai_root_cause: analysis?.ai_root_cause,
-        });
+        })
+        .select("id")
+        .single();
+
+      if (insertedData) setComplaint(insertedData);
 
       // Show AI response as chatbot message
       const botResponse = analysis?.ai_response_draft || "Thank you for your complaint. Our team will review it shortly.";
@@ -87,6 +92,7 @@ const PublicComplaintPage = () => {
     setForm({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "", name: "", email: "" });
     setMessages([]);
     setSubmitted(false);
+    setComplaint(null);
   };
 
   return (
@@ -153,7 +159,17 @@ const PublicComplaintPage = () => {
           {submitted ? (
             <div className="glass-card p-8 text-center space-y-4">
               <p className="text-foreground">Your complaint has been registered and is being reviewed.</p>
-              <Button onClick={handleNewComplaint}>Submit Another Complaint</Button>
+              {complaint && (
+                <div className="bg-secondary/50 rounded-md p-3 text-sm">
+                  <p className="text-muted-foreground">Your Complaint ID:</p>
+                  <p className="font-mono text-primary text-xs mt-1 select-all">{complaint.id}</p>
+                  <p className="text-[10px] text-muted-foreground mt-2">Save this ID to track your complaint status</p>
+                </div>
+              )}
+              <div className="flex gap-3 justify-center">
+                <Button onClick={handleNewComplaint} variant="outline">Submit Another</Button>
+                <Button asChild><Link to="/track-complaint">Track Complaint</Link></Button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="glass-card p-6 space-y-5">
