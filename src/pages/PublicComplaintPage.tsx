@@ -51,7 +51,7 @@ const PublicComplaintPage = () => {
       if (aiError) throw aiError;
 
       // Insert as public complaint (use a fixed public user id)
-      const { error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from("complaints")
         .insert({
           complaint_text: form.text,
@@ -67,7 +67,11 @@ const PublicComplaintPage = () => {
           escalation_risk: analysis?.escalation_risk,
           ai_response_draft: analysis?.ai_response_draft,
           ai_root_cause: analysis?.ai_root_cause,
-        });
+        })
+        .select("id")
+        .single();
+
+      if (insertedData) setComplaint(insertedData);
 
       // Show AI response as chatbot message
       const botResponse = analysis?.ai_response_draft || "Thank you for your complaint. Our team will review it shortly.";
