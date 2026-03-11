@@ -6,12 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 3): Promise<Response> {
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+async function fetchWithRetry(url: string, options: RequestInit, maxRetries = 2): Promise<Response> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const response = await fetch(url, options);
-    if (response.status === 429 && attempt < maxRetries - 1) {
-      const delay = Math.pow(2, attempt + 1) * 2000; // 4s, 8s, 16s
-      console.log(`Rate limited, retrying in ${delay}ms (attempt ${attempt + 1}/${maxRetries})`);
+    if (response.status === 429 && attempt < maxRetries) {
+      const retryAfter = response.headers.get("Retry-After");
+      const delay = retryAfter ? Math.min(parseInt(retryAfter, 10) * 1000, 3000) : (attempt + 1) * 1500;
+      console.log(`Rate limited, retry in ${delay}ms (attempt ${attempt + 1})`);
       await new Promise(r => setTimeout(r, delay));
       continue;
     }
@@ -30,7 +31,7 @@ serve(async (req) => {
     const { complaint_text, product_type, channel, location, bulk_mode } = await req.json();
     if (!complaint_text) throw new Error("complaint_text is required");
 
-    // --- Duplicate Detection (skip in bulk mode to save API calls) ---
+    // --- Duplicate Detection (skip in bulk mode) ---
     let duplicate_of: string | null = null;
     if (!bulk_mode) {
       try {
@@ -56,30 +57,26 @@ serve(async (req) => {
               messages: [
                 {
                   role: "system",
-                  content: `You are a duplicate complaint detector. Compare the NEW complaint against the list of EXISTING complaints. If the new complaint is substantially similar (same issue, same context) to any existing one, return the ID of the most similar existing complaint. Return ONLY a JSON object: {"duplicate_id": "uuid-here"} or {"duplicate_id": null} if no duplicate found. Return ONLY valid JSON.`
+                  content: `You are a duplicate complaint detector. Compare the NEW complaint against EXISTING complaints. If substantially similar, return the ID. Return ONLY valid JSON: {"duplicate_id": "uuid"} or {"duplicate_id": null}.`
                 },
                 {
                   role: "user",
-                  content: `NEW COMPLAINT:\n${complaint_text}\n\nEXISTING COMPLAINTS:\n${existing.slice(0, 20).map(c => `[${c.id}] ${c.complaint_text}`).join("\n")}`
+                  content: `NEW:\n${complaint_text}\n\nEXISTING:\n${existing.slice(0, 15).map(c => `[${c.id}] ${c.complaint_text}`).join("\n")}`
                 }
               ],
-              tools: [
-                {
-                  type: "function",
-                  function: {
-                    name: "check_duplicate",
-                    description: "Return duplicate check result",
-                    parameters: {
-                      type: "object",
-                      properties: {
-                        duplicate_id: { type: ["string", "null"] },
-                      },
-                      required: ["duplicate_id"],
-                      additionalProperties: false,
-                    },
+              tools: [{
+                type: "function",
+                function: {
+                  name: "check_duplicate",
+                  description: "Return duplicate check result",
+                  parameters: {
+                    type: "object",
+                    properties: { duplicate_id: { type: ["string", "null"] } },
+                    required: ["duplicate_id"],
+                    additionalProperties: false,
                   },
                 },
-              ],
+              }],
               tool_choice: { type: "function", function: { name: "check_duplicate" } },
             }),
           });
@@ -89,9 +86,7 @@ serve(async (req) => {
             const toolCall = dupData.choices?.[0]?.message?.tool_calls?.[0];
             if (toolCall?.function?.arguments) {
               const parsed = JSON.parse(toolCall.function.arguments);
-              if (parsed.duplicate_id) {
-                duplicate_of = parsed.duplicate_id;
-              }
+              if (parsed.duplicate_id) duplicate_of = parsed.duplicate_id;
             }
           }
         }
@@ -100,21 +95,18 @@ serve(async (req) => {
       }
     }
 
-    // --- Main Analysis (use faster/cheaper model for bulk) ---
-    const model = bulk_mode ? "google/gemini-2.5-flash-lite" : "google/gemini-3-flash-preview";
+    // --- Main Analysis ---
+    const model = bulk_mode ? "google/gemini-2.5-flash-lite" : "google/gemini-2.5-flash";
     
-    const systemPrompt = `You are a banking complaint analysis AI. Analyze the following customer complaint and return a JSON object with these exact fields:
-- category: one of "ATM", "UPI", "Credit Cards", "Loans", "Account Issues", "Internet Banking"
-- sentiment: one of "positive", "negative", "neutral"
-- frustration_score: integer 1-10
-- priority_score: integer 1-100
-- escalation_risk: decimal 0.00-1.00
-- ai_response_draft: a professional 3-4 sentence response to the customer
-- ai_root_cause: a brief technical root cause analysis (1-2 sentences)
-
-Context: Product Type: ${product_type || "Unknown"}, Channel: ${channel || "Unknown"}, Location: ${location || "Unknown"}
-
-Return ONLY valid JSON.`;
+    const systemPrompt = `You are a banking complaint analysis AI. Analyze the complaint and return JSON with:
+- category: "ATM"|"UPI"|"Credit Cards"|"Loans"|"Account Issues"|"Internet Banking"
+- sentiment: "positive"|"negative"|"neutral"
+- frustration_score: 1-10
+- priority_score: 1-100
+- escalation_risk: 0.00-1.00
+- ai_response_draft: professional 2-3 sentence response
+- ai_root_cause: brief root cause (1 sentence)
+Context: Product: ${product_type || "Unknown"}, Channel: ${channel || "Unknown"}, Location: ${location || "Unknown"}`;
 
     const response = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -128,36 +120,34 @@ Return ONLY valid JSON.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: complaint_text },
         ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "analyze_complaint",
-              description: "Return structured complaint analysis",
-              parameters: {
-                type: "object",
-                properties: {
-                  category: { type: "string", enum: ["ATM", "UPI", "Credit Cards", "Loans", "Account Issues", "Internet Banking"] },
-                  sentiment: { type: "string", enum: ["positive", "negative", "neutral"] },
-                  frustration_score: { type: "integer", minimum: 1, maximum: 10 },
-                  priority_score: { type: "integer", minimum: 1, maximum: 100 },
-                  escalation_risk: { type: "number", minimum: 0, maximum: 1 },
-                  ai_response_draft: { type: "string" },
-                  ai_root_cause: { type: "string" },
-                },
-                required: ["category", "sentiment", "frustration_score", "priority_score", "escalation_risk", "ai_response_draft", "ai_root_cause"],
-                additionalProperties: false,
+        tools: [{
+          type: "function",
+          function: {
+            name: "analyze_complaint",
+            description: "Return structured complaint analysis",
+            parameters: {
+              type: "object",
+              properties: {
+                category: { type: "string", enum: ["ATM", "UPI", "Credit Cards", "Loans", "Account Issues", "Internet Banking"] },
+                sentiment: { type: "string", enum: ["positive", "negative", "neutral"] },
+                frustration_score: { type: "integer", minimum: 1, maximum: 10 },
+                priority_score: { type: "integer", minimum: 1, maximum: 100 },
+                escalation_risk: { type: "number", minimum: 0, maximum: 1 },
+                ai_response_draft: { type: "string" },
+                ai_root_cause: { type: "string" },
               },
+              required: ["category", "sentiment", "frustration_score", "priority_score", "escalation_risk", "ai_response_draft", "ai_root_cause"],
+              additionalProperties: false,
             },
           },
-        ],
+        }],
         tool_choice: { type: "function", function: { name: "analyze_complaint" } },
       }),
     });
 
     if (!response.ok) {
       if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later." }), {
+        return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again later.", retry: true }), {
           status: 429,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -185,7 +175,6 @@ Return ONLY valid JSON.`;
       analysis = JSON.parse(cleaned);
     }
 
-    // Include duplicate info
     if (duplicate_of) {
       analysis.duplicate_of = duplicate_of;
       analysis.is_duplicate = true;
