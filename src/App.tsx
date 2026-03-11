@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/lib/authContext";
 import LandingPage from "./pages/LandingPage";
 import PublicComplaintPage from "./pages/PublicComplaintPage";
+import TrackComplaintPage from "./pages/TrackComplaintPage";
 import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import ComplaintsListPage from "./pages/ComplaintsListPage";
