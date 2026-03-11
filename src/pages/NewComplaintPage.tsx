@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Papa from "papaparse";
-import { Upload, FileText, Loader2, Download, Info } from "lucide-react";
+import { Upload, FileText, Loader2, Download, Info, XCircle } from "lucide-react";
 
 const CSV_TEMPLATE = `complaint_text,date,product_type,channel,location
 "ATM did not dispense cash but amount was debited from my account",2026-03-01,ATM,Phone,Mumbai
@@ -17,14 +17,17 @@ const CSV_TEMPLATE = `complaint_text,date,product_type,channel,location
 "Credit card statement shows unauthorized transaction of Rs 5000",2026-03-03,Credit Card,Email,Bangalore
 "Internet banking portal is not loading since yesterday",2026-03-04,Internet Banking,Web Portal,Chennai`;
 
+const DELAY_BETWEEN_ROWS_MS = 5000; // 5 seconds between each row
+
 const NewComplaintPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const cancelRef = useRef(false);
   const [form, setForm] = useState({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "" });
   const [csvProcessing, setCsvProcessing] = useState(false);
-  const [csvProgress, setCsvProgress] = useState({ current: 0, total: 0 });
+  const [csvProgress, setCsvProgress] = useState({ current: 0, total: 0, failed: 0 });
 
   const submitMutation = useMutation({
     mutationFn: async (data: { text: string; date: string; productType: string; channel: string; location: string }) => {
@@ -75,27 +78,56 @@ const NewComplaintPage = () => {
     URL.revokeObjectURL(url);
   };
 
+  const cancelUpload = () => {
+    cancelRef.current = true;
+    toast.info("Cancelling... will stop after current complaint finishes.");
+  };
+
+  const formatETA = (remainingRows: number) => {
+    const seconds = remainingRows * (DELAY_BETWEEN_ROWS_MS / 1000 + 2); // ~2s per AI call + delay
+    if (seconds < 60) return `~${Math.ceil(seconds)}s`;
+    const mins = Math.ceil(seconds / 60);
+    return `~${mins} min`;
+  };
+
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    cancelRef.current = false;
     setCsvProcessing(true);
     Papa.parse(file, {
       header: true,
       complete: async (results) => {
         const rows = (results.data as any[]).filter(row => row.complaint_text || row.text);
-        setCsvProgress({ current: 0, total: rows.length });
+        setCsvProgress({ current: 0, total: rows.length, failed: 0 });
         let count = 0;
+        let failed = 0;
+
         for (let i = 0; i < rows.length; i++) {
+          if (cancelRef.current) {
+            toast.info(`Upload cancelled. Processed ${count} of ${rows.length} complaints.`);
+            break;
+          }
+
           const row = rows[i];
           const text = row.complaint_text || row.text;
           if (!text) continue;
-          // Add delay between rows to avoid rate limiting (3s between each)
-          if (i > 0) await new Promise(r => setTimeout(r, 3000));
+
+          // Add delay between rows to avoid rate limiting
+          if (i > 0) await new Promise(r => setTimeout(r, DELAY_BETWEEN_ROWS_MS));
+
           let retries = 0;
-          while (retries < 3) {
+          let success = false;
+          while (retries < 3 && !cancelRef.current) {
             try {
-              const analysis = await analyzeComplaint(text, row.product_type || row.productType || "", row.channel || "", row.location || "");
+              const analysis = await analyzeComplaint(
+                text,
+                row.product_type || row.productType || "",
+                row.channel || "",
+                row.location || "",
+                true // bulk_mode - skips duplicate detection, uses faster model
+              );
               await insertComplaint({
                 complaint_text: text,
                 date: row.date || new Date().toISOString().split("T")[0],
@@ -106,27 +138,41 @@ const NewComplaintPage = () => {
                 ...analysis,
               });
               count++;
-              setCsvProgress({ current: count, total: rows.length });
+              success = true;
+              setCsvProgress({ current: count, total: rows.length, failed });
               break;
             } catch (err: any) {
               retries++;
               if (retries < 3) {
-                console.warn(`Row ${i + 1} failed, retrying in ${retries * 5}s...`);
-                await new Promise(r => setTimeout(r, retries * 5000));
-              } else {
-                console.error("Failed to process row after retries:", err);
+                const waitTime = retries * 8000; // 8s, 16s
+                console.warn(`Row ${i + 1} failed (attempt ${retries}), retrying in ${waitTime / 1000}s...`);
+                await new Promise(r => setTimeout(r, waitTime));
               }
             }
           }
+          if (!success && !cancelRef.current) {
+            failed++;
+            setCsvProgress({ current: count, total: rows.length, failed });
+            console.error(`Row ${i + 1} failed after all retries: ${text.substring(0, 50)}...`);
+          }
         }
+
         queryClient.invalidateQueries({ queryKey: ["complaints"] });
-        toast.success(`Imported ${count} of ${rows.length} complaints with AI analysis`);
+        if (!cancelRef.current) {
+          if (failed > 0) {
+            toast.warning(`Imported ${count} of ${rows.length} complaints. ${failed} failed due to rate limits.`);
+          } else {
+            toast.success(`Successfully imported all ${count} complaints with AI analysis!`);
+          }
+        }
         setCsvProcessing(false);
-        navigate("/admin/complaints");
+        if (count > 0) navigate("/admin/complaints");
       },
       error: () => { toast.error("Failed to parse CSV"); setCsvProcessing(false); },
     });
   };
+
+  const remainingRows = csvProgress.total - csvProgress.current - csvProgress.failed;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -153,6 +199,7 @@ const NewComplaintPage = () => {
               <p className="font-medium text-foreground mb-1">CSV File Format:</p>
               <p className="text-muted-foreground">Your CSV must have a header row. Required column: <span className="text-primary font-mono">complaint_text</span></p>
               <p className="text-muted-foreground mt-1">Optional columns: <span className="font-mono text-muted-foreground">date, product_type, channel, location</span></p>
+              <p className="text-muted-foreground mt-1">⚡ Bulk mode uses a faster AI model and skips duplicate detection for speed.</p>
             </div>
           </div>
           <div className="bg-background/50 rounded p-2 font-mono text-[10px] text-muted-foreground overflow-x-auto">
@@ -163,15 +210,27 @@ const NewComplaintPage = () => {
         </div>
 
         {csvProcessing ? (
-          <div className="text-center py-4 space-y-2">
+          <div className="text-center py-4 space-y-3">
             <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
-            <p className="text-sm text-foreground">Processing {csvProgress.current} of {csvProgress.total} complaints...</p>
+            <p className="text-sm text-foreground">
+              Processing {csvProgress.current} of {csvProgress.total} complaints...
+            </p>
+            {csvProgress.failed > 0 && (
+              <p className="text-xs text-destructive">{csvProgress.failed} failed (will retry)</p>
+            )}
             <div className="w-full bg-secondary rounded-full h-2">
               <div
                 className="bg-primary h-2 rounded-full transition-all"
-                style={{ width: csvProgress.total > 0 ? `${(csvProgress.current / csvProgress.total) * 100}%` : "0%" }}
+                style={{ width: csvProgress.total > 0 ? `${((csvProgress.current + csvProgress.failed) / csvProgress.total) * 100}%` : "0%" }}
               />
             </div>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+              <span>ETA: {formatETA(remainingRows)}</span>
+              <span>{Math.round(((csvProgress.current + csvProgress.failed) / csvProgress.total) * 100)}%</span>
+            </div>
+            <Button variant="destructive" size="sm" onClick={cancelUpload} className="mt-2">
+              <XCircle className="w-3 h-3 mr-1" /> Cancel Upload
+            </Button>
           </div>
         ) : (
           <div
@@ -180,7 +239,7 @@ const NewComplaintPage = () => {
           >
             <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
             <p className="text-sm text-foreground">Click to select CSV file</p>
-            <p className="text-xs text-muted-foreground mt-1">Each row will be analyzed by AI automatically</p>
+            <p className="text-xs text-muted-foreground mt-1">Each row will be analyzed by AI automatically (5s between rows to avoid rate limits)</p>
             <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
           </div>
         )}
