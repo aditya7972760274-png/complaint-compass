@@ -9,7 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import Papa from "papaparse";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, FileText, Loader2, Download, Info } from "lucide-react";
+
+const CSV_TEMPLATE = `complaint_text,date,product_type,channel,location
+"ATM did not dispense cash but amount was debited from my account",2026-03-01,ATM,Phone,Mumbai
+"Unable to complete UPI payment, transaction failed multiple times",2026-03-02,UPI,App,Delhi
+"Credit card statement shows unauthorized transaction of Rs 5000",2026-03-03,Credit Card,Email,Bangalore
+"Internet banking portal is not loading since yesterday",2026-03-04,Internet Banking,Web Portal,Chennai`;
 
 const NewComplaintPage = () => {
   const navigate = useNavigate();
@@ -17,15 +23,13 @@ const NewComplaintPage = () => {
   const queryClient = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "" });
+  const [csvProcessing, setCsvProcessing] = useState(false);
+  const [csvProgress, setCsvProgress] = useState({ current: 0, total: 0 });
 
   const submitMutation = useMutation({
     mutationFn: async (data: { text: string; date: string; productType: string; channel: string; location: string }) => {
       if (!user) throw new Error("Not authenticated");
-
-      // Run AI analysis (includes duplicate detection)
       const analysis = await analyzeComplaint(data.text, data.productType, data.channel, data.location);
-
-      // Insert with AI results
       return insertComplaint({
         complaint_text: data.text,
         date: data.date,
@@ -61,16 +65,29 @@ const NewComplaintPage = () => {
     submitMutation.mutate(form);
   };
 
+  const downloadTemplate = () => {
+    const blob = new Blob([CSV_TEMPLATE], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "complaints_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
+    setCsvProcessing(true);
     Papa.parse(file, {
       header: true,
       complete: async (results) => {
+        const rows = (results.data as any[]).filter(row => row.complaint_text || row.text);
+        setCsvProgress({ current: 0, total: rows.length });
         let count = 0;
-        for (const row of results.data as any[]) {
-          const text = row.text || row.complaint_text;
+        for (const row of rows) {
+          const text = row.complaint_text || row.text;
           if (!text) continue;
           try {
             const analysis = await analyzeComplaint(text, row.product_type || row.productType || "", row.channel || "", row.location || "");
@@ -84,15 +101,17 @@ const NewComplaintPage = () => {
               ...analysis,
             });
             count++;
+            setCsvProgress({ current: count, total: rows.length });
           } catch (err) {
             console.error("Failed to process row:", err);
           }
         }
         queryClient.invalidateQueries({ queryKey: ["complaints"] });
-        toast.success(`Imported ${count} complaints with AI analysis`);
+        toast.success(`Imported ${count} of ${rows.length} complaints with AI analysis`);
+        setCsvProcessing(false);
         navigate("/admin/complaints");
       },
-      error: () => toast.error("Failed to parse CSV"),
+      error: () => { toast.error("Failed to parse CSV"); setCsvProcessing(false); },
     });
   };
 
@@ -103,14 +122,55 @@ const NewComplaintPage = () => {
         <p className="text-sm text-muted-foreground">AI will automatically categorize, score, and generate responses</p>
       </div>
 
-      <div
-        className="glass-card p-8 border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer text-center"
-        onClick={() => fileRef.current?.click()}
-      >
-        <Upload className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-        <p className="text-sm text-foreground">Drop CSV file or click to upload</p>
-        <p className="text-xs text-muted-foreground mt-1">Columns: text, date, product_type, channel, location</p>
-        <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
+      {/* CSV Upload Section */}
+      <div className="glass-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-medium text-foreground flex items-center gap-2">
+            <Upload className="w-4 h-4 text-primary" /> Bulk CSV Upload
+          </h3>
+          <Button variant="outline" size="sm" onClick={downloadTemplate}>
+            <Download className="w-3 h-3 mr-1" /> Download Template
+          </Button>
+        </div>
+
+        <div className="bg-secondary/50 rounded-md p-3 text-xs space-y-2">
+          <div className="flex items-start gap-2">
+            <Info className="w-3.5 h-3.5 text-primary mt-0.5 shrink-0" />
+            <div>
+              <p className="font-medium text-foreground mb-1">CSV File Format:</p>
+              <p className="text-muted-foreground">Your CSV must have a header row. Required column: <span className="text-primary font-mono">complaint_text</span></p>
+              <p className="text-muted-foreground mt-1">Optional columns: <span className="font-mono text-muted-foreground">date, product_type, channel, location</span></p>
+            </div>
+          </div>
+          <div className="bg-background/50 rounded p-2 font-mono text-[10px] text-muted-foreground overflow-x-auto">
+            complaint_text,date,product_type,channel,location<br />
+            "ATM did not dispense cash...",2026-03-01,ATM,Phone,Mumbai<br />
+            "UPI payment failed...",2026-03-02,UPI,App,Delhi
+          </div>
+        </div>
+
+        {csvProcessing ? (
+          <div className="text-center py-4 space-y-2">
+            <Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" />
+            <p className="text-sm text-foreground">Processing {csvProgress.current} of {csvProgress.total} complaints...</p>
+            <div className="w-full bg-secondary rounded-full h-2">
+              <div
+                className="bg-primary h-2 rounded-full transition-all"
+                style={{ width: csvProgress.total > 0 ? `${(csvProgress.current / csvProgress.total) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
+        ) : (
+          <div
+            className="border-2 border-dashed border-border hover:border-primary/50 transition-colors cursor-pointer text-center rounded-md p-6"
+            onClick={() => fileRef.current?.click()}
+          >
+            <Upload className="w-6 h-6 text-muted-foreground mx-auto mb-2" />
+            <p className="text-sm text-foreground">Click to select CSV file</p>
+            <p className="text-xs text-muted-foreground mt-1">Each row will be analyzed by AI automatically</p>
+            <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleCSV} />
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-3 text-xs text-muted-foreground">
