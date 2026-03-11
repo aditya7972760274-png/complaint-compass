@@ -28,6 +28,7 @@ const PublicComplaintPage = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [complaint, setComplaint] = useState<{ id: string } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
