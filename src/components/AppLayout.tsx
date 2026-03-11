@@ -6,6 +6,7 @@ import {
   FileText, Brain, LogOut, Shield, Activity
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import NotificationBell from "@/components/NotificationBell";
 
 const navItems = [
   { to: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -54,7 +55,11 @@ const AppLayout = ({ children }: { children: ReactNode }) => {
           ))}
         </nav>
 
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-1">
+          <div className="flex items-center justify-between px-3 py-1">
+            <span className="text-xs text-muted-foreground">Alerts</span>
+            <NotificationBell />
+          </div>
           <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-3 py-2.5 rounded-md text-sm text-muted-foreground hover:text-destructive hover:bg-secondary w-full transition-colors"

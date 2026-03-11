@@ -46,6 +46,7 @@ const App = () => (
             {/* Public routes */}
             <Route path="/" element={<LandingPage />} />
             <Route path="/raise-complaint" element={<PublicComplaintPage />} />
+            <Route path="/track-complaint" element={<TrackComplaintPage />} />
             <Route path="/admin/login" element={<AdminLoginRoute />} />
 
             {/* Admin protected routes */}
