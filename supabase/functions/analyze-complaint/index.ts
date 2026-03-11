@@ -45,7 +45,7 @@ serve(async (req) => {
 
       if (existing && existing.length > 0) {
         // Use AI to check for duplicates
-        const dupCheckResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const dupCheckResponse = await fetchWithRetry("https://ai.gateway.lovable.dev/v1/chat/completions", {
           method: "POST",
           headers: {
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
