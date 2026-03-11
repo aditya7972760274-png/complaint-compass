@@ -92,6 +92,7 @@ const PublicComplaintPage = () => {
     setForm({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "", name: "", email: "" });
     setMessages([]);
     setSubmitted(false);
+    setComplaint(null);
   };
 
   return (
