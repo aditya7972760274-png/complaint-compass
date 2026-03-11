@@ -17,7 +17,7 @@ const CSV_TEMPLATE = `complaint_text,date,product_type,channel,location
 "Credit card statement shows unauthorized transaction of Rs 5000",2026-03-03,Credit Card,Email,Bangalore
 "Internet banking portal is not loading since yesterday",2026-03-04,Internet Banking,Web Portal,Chennai`;
 
-const DELAY_BETWEEN_ROWS_MS = 5000; // 5 seconds between each row
+const DELAY_BETWEEN_ROWS_MS = 10000; // 10 seconds between each row to stay under rate limits
 
 const NewComplaintPage = () => {
   const navigate = useNavigate();
