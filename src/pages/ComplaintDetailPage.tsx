@@ -1,12 +1,14 @@
 import { useParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchComplaintById, updateComplaintStatus, generateClusterAnalysis } from "@/lib/api";
+import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, AlertTriangle, Brain, MessageSquare, ShieldAlert, Loader2, Copy, Check, FileSearch } from "lucide-react";
+import { ArrowLeft, AlertTriangle, Brain, MessageSquare, ShieldAlert, Loader2, Copy, Check, FileSearch, Bot, User } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 
 const STATUS_OPTIONS = [
   { value: "new", label: "New", className: "bg-chart-5/20 text-chart-5" },
