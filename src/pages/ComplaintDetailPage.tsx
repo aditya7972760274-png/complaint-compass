@@ -246,6 +246,44 @@ const ComplaintDetailPage = () => {
           </pre>
         </div>
       )}
+      {chatMessages && chatMessages.length > 0 && (
+        <div className="glass-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <MessageSquare className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-medium text-foreground">Customer Conversation ({chatMessages.length} messages)</h3>
+          </div>
+          <div className="space-y-3 max-h-[400px] overflow-auto">
+            {chatMessages.map((msg: any) => (
+              <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                {msg.role === "bot" && (
+                  <div className="w-7 h-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                    <Bot className="w-3.5 h-3.5 text-primary" />
+                  </div>
+                )}
+                <div className={`max-w-[75%] rounded-lg p-3 text-sm ${
+                  msg.role === "user" ? "bg-warning/10 text-foreground" : "bg-secondary text-foreground"
+                }`}>
+                  {msg.role === "bot" ? (
+                    <div className="prose prose-sm prose-invert max-w-none">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <p>{msg.content}</p>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {new Date(msg.created_at).toLocaleString()}
+                  </p>
+                </div>
+                {msg.role === "user" && (
+                  <div className="w-7 h-7 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
+                    <User className="w-3.5 h-3.5 text-warning" />
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
