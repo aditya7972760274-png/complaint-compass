@@ -31,6 +31,21 @@ const ComplaintDetailPage = () => {
     enabled: !!id,
   });
 
+  const { data: chatMessages } = useQuery({
+    queryKey: ["chat_messages", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("complaint_id", id!)
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+    refetchInterval: 10000,
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ id, status }: { id: string; status: string }) => updateComplaintStatus(id, status),
     onSuccess: () => {
