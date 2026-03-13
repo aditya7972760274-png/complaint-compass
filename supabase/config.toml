@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.chat-complaint]
 verify_jwt = false
+
+[functions.ai-assistant]
+verify_jwt = false
+
+[functions.incident-commander]
+verify_jwt = false

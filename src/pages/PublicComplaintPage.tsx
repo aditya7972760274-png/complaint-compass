@@ -5,15 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, Send, Loader2, Bot, User, MessageSquareWarning } from "lucide-react";
+import { ArrowLeft, Send, Loader2, MessageSquareWarning, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import ReactMarkdown from "react-markdown";
-
-interface ChatMessage {
-  role: "user" | "bot";
-  content: string;
-}
 
 const PublicComplaintPage = () => {
   const [form, setForm] = useState({
@@ -25,36 +19,29 @@ const PublicComplaintPage = () => {
     name: "",
     email: "",
   });
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [submitting, setSubmitting] = useState(false);
-  const [complaint, setComplaint] = useState<{ id: string } | null>(null);
-  const [followUp, setFollowUp] = useState("");
-  const [sendingFollowUp, setSendingFollowUp] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, submitting, sendingFollowUp]);
+  const [complaintId, setComplaintId] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.text.trim()) { toast.error("Please describe your complaint"); return; }
 
     setSubmitting(true);
-    setMessages([{ role: "user", content: form.text }]);
 
     try {
+      // Analyze complaint
       const { data: analysis, error: aiError } = await supabase.functions.invoke("analyze-complaint", {
         body: {
           complaint_text: form.text,
           product_type: form.productType || "General",
-          channel: form.channel || "Web Portal",
+          channel: "Web Portal",
           location: form.location || "Unknown",
         },
       });
 
       if (aiError) throw aiError;
 
+      // Insert complaint
       const { data: insertedData, error: insertError } = await supabase
         .from("complaints")
         .insert({
@@ -77,59 +64,20 @@ const PublicComplaintPage = () => {
 
       if (insertError) throw insertError;
 
-      const complaintId = insertedData?.id;
-      if (complaintId) {
-        setComplaint({ id: complaintId });
-        // Save initial messages to DB
-        await supabase.from("chat_messages").insert([
-          { complaint_id: complaintId, role: "user", content: form.text },
-          { complaint_id: complaintId, role: "bot", content: analysis?.ai_response_draft || "Thank you. Our team will review your complaint." },
-        ]);
-      }
-
-      const botResponse = analysis?.ai_response_draft || "Thank you for your complaint. Our team will review it shortly.";
-      setMessages(prev => [...prev, { role: "bot", content: botResponse }]);
+      setComplaintId(insertedData?.id || null);
       toast.success("Complaint submitted successfully!");
     } catch (err: any) {
-      const errorMsg = "We've received your complaint and will get back to you shortly. Thank you for your patience.";
-      setMessages(prev => [...prev, { role: "bot", content: errorMsg }]);
       console.error("Complaint submission error:", err);
+      toast.error("Failed to submit complaint. Please try again.");
     }
 
     setSubmitting(false);
   };
 
-  const handleFollowUp = async () => {
-    if (!followUp.trim() || !complaint?.id) return;
-
-    const userMsg = followUp.trim();
-    setFollowUp("");
-    setMessages(prev => [...prev, { role: "user", content: userMsg }]);
-    setSendingFollowUp(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("chat-complaint", {
-        body: { complaint_id: complaint.id, message: userMsg },
-      });
-
-      if (error) throw error;
-      setMessages(prev => [...prev, { role: "bot", content: data.reply }]);
-    } catch (err: any) {
-      setMessages(prev => [...prev, { role: "bot", content: "Sorry, I couldn't process your message right now. Please try again." }]);
-      console.error("Follow-up error:", err);
-    }
-
-    setSendingFollowUp(false);
-  };
-
   const handleNewComplaint = () => {
     setForm({ text: "", date: new Date().toISOString().split("T")[0], productType: "", channel: "", location: "", name: "", email: "" });
-    setMessages([]);
-    setComplaint(null);
-    setFollowUp("");
+    setComplaintId(null);
   };
-
-  const isInChat = messages.length > 0;
 
   return (
     <div className="min-h-screen bg-background">
@@ -139,63 +87,43 @@ const PublicComplaintPage = () => {
         </Link>
 
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="flex items-center gap-3 mb-6">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-lg bg-warning/20 flex items-center justify-center">
               <MessageSquareWarning className="w-5 h-5 text-warning" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground">Raise a Complaint</h1>
-              <p className="text-sm text-muted-foreground">Describe your issue and chat with our AI assistant</p>
+              <p className="text-sm text-muted-foreground">Submit a formal complaint for investigation</p>
             </div>
           </div>
 
-          {/* Chat area */}
-          {isInChat && (
-            <div className="glass-card p-4 mb-4 space-y-4 max-h-[450px] overflow-auto">
-              {messages.map((msg, i) => (
-                <ChatBubble key={i} msg={msg} />
-              ))}
-              {(submitting || sendingFollowUp) && (
-                <div className="flex gap-3">
-                  <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4 text-primary" />
-                  </div>
-                  <div className="bg-secondary rounded-lg p-3">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-          )}
-
-          {/* After submission: follow-up chat input + actions */}
-          {complaint ? (
-            <div className="space-y-4">
-              <div className="flex gap-2">
-                <Input
-                  value={followUp}
-                  onChange={e => setFollowUp(e.target.value)}
-                  placeholder="Ask a follow-up question..."
-                  className="bg-secondary border-border"
-                  onKeyDown={e => e.key === "Enter" && !sendingFollowUp && handleFollowUp()}
-                  disabled={sendingFollowUp}
-                />
-                <Button onClick={handleFollowUp} disabled={sendingFollowUp || !followUp.trim()} size="icon">
-                  {sendingFollowUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </Button>
+          {/* Nudge to AI Assistant */}
+          <Link to="/ai-assistant" className="block mb-6">
+            <div className="glass-card p-3 flex items-center gap-3 hover:border-primary/50 transition-all">
+              <Sparkles className="w-5 h-5 text-primary shrink-0" />
+              <div className="flex-1">
+                <p className="text-xs text-foreground font-medium">Have a question? Try our AI Issue Assistant first</p>
+                <p className="text-[10px] text-muted-foreground">Get instant answers — no need to wait for a complaint resolution</p>
               </div>
+              <span className="text-primary text-xs">→</span>
+            </div>
+          </Link>
 
-              <div className="glass-card p-4 text-center space-y-3">
-                <div className="bg-secondary/50 rounded-md p-3 text-sm">
-                  <p className="text-muted-foreground text-xs">Your Complaint ID:</p>
-                  <p className="font-mono text-primary text-xs mt-1 select-all">{complaint.id}</p>
-                  <p className="text-[10px] text-muted-foreground mt-2">Save this ID to track your complaint status</p>
-                </div>
-                <div className="flex gap-3 justify-center">
-                  <Button onClick={handleNewComplaint} variant="outline" size="sm">Submit Another</Button>
-                  <Button asChild size="sm"><Link to="/track-complaint">Track Complaint</Link></Button>
-                </div>
+          {complaintId ? (
+            <div className="glass-card p-8 text-center space-y-4">
+              <div className="w-16 h-16 rounded-full bg-success/20 flex items-center justify-center mx-auto">
+                <MessageSquareWarning className="w-8 h-8 text-success" />
+              </div>
+              <h2 className="text-xl font-semibold text-foreground">Complaint Submitted</h2>
+              <p className="text-sm text-muted-foreground">Your complaint has been registered and is being reviewed by our team.</p>
+              <div className="bg-secondary/50 rounded-md p-4 text-sm">
+                <p className="text-muted-foreground text-xs">Your Complaint ID:</p>
+                <p className="font-mono text-primary text-sm mt-1 select-all">{complaintId}</p>
+                <p className="text-[10px] text-muted-foreground mt-2">Save this ID to track your complaint status</p>
+              </div>
+              <div className="flex gap-3 justify-center">
+                <Button onClick={handleNewComplaint} variant="outline" size="sm">Submit Another</Button>
+                <Button asChild size="sm"><Link to="/track-complaint">Track Complaint</Link></Button>
               </div>
             </div>
           ) : (
@@ -234,7 +162,7 @@ const PublicComplaintPage = () => {
 
               <Button type="submit" className="w-full" disabled={submitting}>
                 {submitting ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing your complaint...</>
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Processing...</>
                 ) : (
                   <><Send className="w-4 h-4 mr-2" /> Submit Complaint</>
                 )}
@@ -246,31 +174,5 @@ const PublicComplaintPage = () => {
     </div>
   );
 };
-
-const ChatBubble = ({ msg }: { msg: ChatMessage }) => (
-  <div className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-    {msg.role === "bot" && (
-      <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-        <Bot className="w-4 h-4 text-primary" />
-      </div>
-    )}
-    <div className={`max-w-[80%] rounded-lg p-3 text-sm ${
-      msg.role === "user" ? "bg-primary/20 text-foreground" : "bg-secondary text-foreground"
-    }`}>
-      {msg.role === "bot" ? (
-        <div className="prose prose-sm prose-invert max-w-none">
-          <ReactMarkdown>{msg.content}</ReactMarkdown>
-        </div>
-      ) : (
-        <p>{msg.content}</p>
-      )}
-    </div>
-    {msg.role === "user" && (
-      <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center shrink-0">
-        <User className="w-4 h-4 text-warning" />
-      </div>
-    )}
-  </div>
-);
 
 export default PublicComplaintPage;
