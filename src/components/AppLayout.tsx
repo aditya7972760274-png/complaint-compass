@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/lib/authContext";
 import {
   LayoutDashboard, MessageSquareWarning, PlusCircle, Network,
-  FileText, Brain, LogOut, Shield, Activity
+  FileText, Brain, LogOut, Shield, Activity, Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import NotificationBell from "@/components/NotificationBell";
@@ -14,6 +14,7 @@ const navItems = [
   { to: "/admin/complaints/new", label: "Submit Complaint", icon: PlusCircle },
   { to: "/admin/clusters", label: "Clusters & RCA", icon: Brain },
   { to: "/admin/anomalies", label: "Anomaly Detection", icon: Activity },
+  { to: "/admin/incident-commander", label: "Incident Commander", icon: Flame },
   { to: "/admin/knowledge-graph", label: "Knowledge Graph", icon: Network },
   { to: "/admin/intelligence", label: "Daily Intelligence", icon: FileText },
 ];
