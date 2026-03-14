@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -22,26 +22,45 @@ const PublicComplaintPage = () => {
   const [submitting, setSubmitting] = useState(false);
   const [complaintId, setComplaintId] = useState<string | null>(null);
 
+  const PUBLIC_USER_ID = "00000000-0000-0000-0000-000000000000";
+  const AI_ANALYSIS_TIMEOUT_MS = 1200;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.text.trim()) { toast.error("Please describe your complaint"); return; }
+    if (!form.text.trim()) {
+      toast.error("Please describe your complaint");
+      return;
+    }
 
     setSubmitting(true);
 
     try {
-      // Analyze complaint
-      const { data: analysis, error: aiError } = await supabase.functions.invoke("analyze-complaint", {
-        body: {
-          complaint_text: form.text,
-          product_type: form.productType || "General",
-          channel: "Web Portal",
-          location: form.location || "Unknown",
-        },
-      });
+      const { data: { session } } = await supabase.auth.getSession();
+      const userId = session?.user?.id ?? PUBLIC_USER_ID;
 
-      if (aiError) throw aiError;
+      const analysisPromise = supabase.functions
+        .invoke("analyze-complaint", {
+          body: {
+            complaint_text: form.text,
+            product_type: form.productType || "General",
+            channel: "Web Portal",
+            location: form.location || "Unknown",
+          },
+        })
+        .then(({ data, error }) => {
+          if (error) throw error;
+          return data;
+        })
+        .catch((error) => {
+          console.warn("AI analysis skipped for faster submission:", error);
+          return null;
+        });
 
-      // Insert complaint
+      const analysis = await Promise.race([
+        analysisPromise,
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), AI_ANALYSIS_TIMEOUT_MS)),
+      ]);
+
       const { data: insertedData, error: insertError } = await supabase
         .from("complaints")
         .insert({
@@ -50,7 +69,7 @@ const PublicComplaintPage = () => {
           product_type: form.productType || "General",
           channel: "Web Portal",
           location: form.location || "Unknown",
-          user_id: "00000000-0000-0000-0000-000000000000",
+          user_id: userId,
           category: analysis?.category,
           sentiment: analysis?.sentiment,
           frustration_score: analysis?.frustration_score,
@@ -69,9 +88,9 @@ const PublicComplaintPage = () => {
     } catch (err: any) {
       console.error("Complaint submission error:", err);
       toast.error("Failed to submit complaint. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
-
-    setSubmitting(false);
   };
 
   const handleNewComplaint = () => {
