@@ -1,0 +1,1 @@
+ALTER TABLE public.complaints DROP CONSTRAINT IF EXISTS complaints_user_id_fkey;
